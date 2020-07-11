@@ -8,6 +8,12 @@ def serialize_post(post):
         "title": post.title,
         "teaser_text": post.text[:200],
         "author": post.author.username,
+        # Было замечание, что на этом этапе происходят дополнительные запросы к базе данных. На данном этапе
+        # к post author уже был префетчен (в models.py фукнцкция fetch_with_posts_count). В сети был совет, что
+        # к полю ForeignKey лучше применять не prefetch_related, а select_related. Я попробовал, и запросы уменьшились.
+        # К примеру на главной странице с 9 до 7. Но дико возросло время загрузки страницы: с 300мс до 12000мс.
+        # Поэтому решено было оставить прошлое решение
+        
         "comments_amount": post.comments__count,
         "image_url": post.image.url if post.image else None,
         "published_at": post.published_at,
@@ -42,8 +48,10 @@ def index(request):
 
 
 def post_detail(request, slug):
-    posts = Post.objects.popular(). \
-        fetch_with_posts_count()
+    posts = Post.objects.popular().fetch_with_posts_count()
+    # Было замечание проверить, какая из этих функций здесь лишняя. Я проверил, как оказалось если
+    # любую отсюда убирать, то код ломается.
+    
     post = get_object_or_404(posts, slug=slug)
     
     comments = post.comments.prefetch_related('author')
@@ -84,8 +92,6 @@ def post_detail(request, slug):
 def tag_filter(request, tag_title):
     tags = Tag.objects.popular()
     posts = Post.objects.popular().fetch_with_posts_count()
-    # Была идея поместить .fetch_with_comments_count() сразу в posts, но появилась проблема, что при применении
-    # фильтра posts.filter(tags=tag) у поста пропадает переменая comment__counts
     
     most_popular_tags = tags[:5]
     
